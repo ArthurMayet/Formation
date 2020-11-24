@@ -1,5 +1,6 @@
 import boto3
 import click
+import botocore
 
 session = boto3.Session(profile_name='arthur')
 ec2 = session.resource('ec2')
@@ -121,14 +122,11 @@ def stop_instances(project):
     for instance in instances:
         tags = {t['Key']: t['Value'] for t in instance.tags or []}
         print("Stopping {0} instance ....".format(instance.id))
-        instance.stop()
-        print(', '.join((
-            instance.id,
-            instance.instance_type,
-            instance.placement['AvailabilityZone'],
-            instance.state['Name'],
-            tags.get('Project', '<no_project>')
-        )))
+        try:
+            instance.stop()
+        except botocore.exceptions.ClientError as e:
+            print("Could not stop {0} instances".format(instance.id) + str(e))
+            continue
 
     return
 
@@ -142,15 +140,11 @@ def start_instances(project):
     for instance in instances:
         tags = {t['Key']: t['Value'] for t in instance.tags or []}
         print("Starting {0} instance ....".format(instance.id))
-        instance.start()
-        print(', '.join((
-            instance.id,
-            instance.instance_type,
-            instance.placement['AvailabilityZone'],
-            instance.state['Name'],
-            instance.public_dns_name,
-            tags.get('Project', '<no_project>')
-        )))
+        try:
+            instance.start()
+        except botocore.exceptions.ClientError as e:
+            print("Could not start {0} instances. ".format(instance.id) + str(e))
+            continue
 
     return
 
