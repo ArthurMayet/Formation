@@ -16,6 +16,10 @@ def filter_instances(project):
 
     return instances
 
+def has_pending_snapshots(volume):
+    snapshots = list(volume.snapshots.all())
+    return snapshots and snapshots[0].state == "pending"
+
 @click.group()
 def cli():
     """ Manage Snapshots """
@@ -27,7 +31,9 @@ def snapshots():
 @snapshots.command('list')
 @click.option('--project', default=None,
               help="Only Snapshots for project (tag Project:<name>)")
-def list_snapshots(project):
+@click.options('--all', 'list_all', default=False, is_flag=True,
+               help="List all snapshots for each volumes")
+def list_snapshots(project, list_all):
     """ List EC2 snapshots """
     instances = filter_instances(project)
 
@@ -39,9 +45,11 @@ def list_snapshots(project):
                     volume.id,
                     instance.id,
                     snapshot.state,
-                    snapshot.progress,
+                     snapshot.progress,
                     snapshot.start_time.strftime("%c")
                 )))
+                if snapshot.state == "completed" and not list_all:
+                    break
     return
 
 @cli.group("volumes")
@@ -84,6 +92,9 @@ def snapshots_instances(project):
             instance.stop()
             instance.wait_until_stopped()
             for volume in instance.volumes.all():
+                if has_pending_snapshots(volume):
+                    print("Snapshot already being created for {0}...".format(volume.id))
+                    continue
                 print ("Creating Snapshots of {0} Volume".format(volume.id))
                 volume.create_snapshots(Description='Create by Arthur')
             print("Starting {0} instance ....".format(instance.id))
@@ -120,7 +131,6 @@ def stop_instances(project):
     instances = filter_instances(project)
 
     for instance in instances:
-        tags = {t['Key']: t['Value'] for t in instance.tags or []}
         print("Stopping {0} instance ....".format(instance.id))
         try:
             instance.stop()
@@ -138,7 +148,6 @@ def start_instances(project):
     instances = filter_instances(project)
 
     for instance in instances:
-        tags = {t['Key']: t['Value'] for t in instance.tags or []}
         print("Starting {0} instance ....".format(instance.id))
         try:
             instance.start()
